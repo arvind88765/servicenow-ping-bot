@@ -1,14 +1,19 @@
-import os
 import requests
 from requests.auth import HTTPBasicAuth
-from telegram.ext import Updater, CommandHandler
+from telegram import Update
+from telegram.ext import Application, CommandHandler
 from apscheduler.schedulers.background import BackgroundScheduler
+import os
+import nest_asyncio
 
-# Get the sensitive information from environment variables (set in Glitch secrets)
-TELEGRAM_API_TOKEN = os.environ['BOT_TOKEN'] # Set in Glitch secrets
-SN_URL = "https://dev192981.service-now.com/sp"  # Replace with your instance URL
-SN_USERNAME = os.environ['SN_USERNAME']  # Set in Glitch secrets
-SN_PASSWORD = os.environ['SN_PASSWORD']  # Set in Glitch secrets
+# Apply nest_asyncio to allow nested event loops
+nest_asyncio.apply()
+
+# Hardcode the bot token and ServiceNow credentials directly
+TELEGRAM_API_TOKEN = "7625747331:AAGR3LBP7PtCaomy7s30vCrTvGjjOYuhYTY"  # Your bot token
+SN_USERNAME = "admin"  # Your ServiceNow username
+SN_PASSWORD = "4n8b!jXCbEG@"  # Your ServiceNow password
+SN_URL = "https://dev192981.service-now.com/sp"  # Your ServiceNow instance URL
 
 # Function to ping ServiceNow PDI to keep it active
 def ping_servicenow():
@@ -22,22 +27,27 @@ def ping_servicenow():
         print(f"❌ Exception: {e}")
 
 # Command handler for /wake_up to trigger a manual wake-up
-def wake_up(update, context):
+async def wake_up(update: Update, context):
     ping_servicenow()
-    update.message.reply_text("✅ Wake-up call sent to your PDI!")
+    await update.message.reply_text("✅ Wake-up call sent to your PDI!")
 
-# Set up the Telegram bot
-updater = Updater(token=TELEGRAM_API_TOKEN, use_context=True)
-dispatcher = updater.dispatcher
+# Set up the Telegram bot (updated for python-telegram-bot v20+)
+async def main():
+    # Create the application (bot) instance
+    application = Application.builder().token(TELEGRAM_API_TOKEN).build()
 
-# Add the /wake_up command to the bot
-dispatcher.add_handler(CommandHandler('wake_up', wake_up))
+    # Add the /wake_up command to the bot
+    application.add_handler(CommandHandler('wake_up', wake_up))
 
-# Schedule a background job to ping ServiceNow every 12 hours
-scheduler = BackgroundScheduler()
-scheduler.add_job(ping_servicenow, 'interval', hours=12)
-scheduler.start()
+    # Schedule a background job to ping ServiceNow every 12 hours
+    scheduler = BackgroundScheduler()
+    scheduler.add_job(ping_servicenow, 'interval', hours=12)
+    scheduler.start()
 
-# Start the bot
-updater.start_polling()
-print("🤖 Bot is running...")
+    # Start the bot (handles event loop internally)
+    await application.run_polling()
+
+# Run the bot using asyncio.run() (handled with nest_asyncio)
+if __name__ == "__main__":
+    import asyncio
+    asyncio.run(main())  # This will run the bot with a patched event loop
