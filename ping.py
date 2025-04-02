@@ -63,7 +63,7 @@ async def main():
 
     # Schedule a background job to ping ServiceNow every 10 minutes and send a status message
     scheduler = BackgroundScheduler()
-    scheduler.add_job(schedule_ping_and_send_status, 'interval', minutes=1, args=[application, loop])
+    scheduler.add_job(schedule_ping_and_send_status, 'interval', minutes=10, args=[application, loop])
     scheduler.start()
 
     # Start the bot (handles event loop internally)
