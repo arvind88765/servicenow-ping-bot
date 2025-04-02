@@ -3,8 +3,8 @@ from requests.auth import HTTPBasicAuth
 from telegram import Update
 from telegram.ext import Application, CommandHandler
 from apscheduler.schedulers.background import BackgroundScheduler
-import os
 import nest_asyncio
+import asyncio
 
 # Apply nest_asyncio to allow nested event loops
 nest_asyncio.apply()
@@ -21,15 +21,34 @@ def ping_servicenow():
         response = requests.get(SN_URL, auth=HTTPBasicAuth(SN_USERNAME, SN_PASSWORD))
         if response.status_code == 200:
             print("✅ PDI is active.")
+            return "✅ Successfully logged in to ServiceNow."
         else:
             print(f"❌ Error pinging PDI: {response.status_code}")
+            return f"❌ Error: {response.status_code}"
     except Exception as e:
         print(f"❌ Exception: {e}")
+        return f"❌ Exception: {e}"
 
 # Command handler for /wake_up to trigger a manual wake-up
 async def wake_up(update: Update, context):
-    ping_servicenow()
-    await update.message.reply_text("✅ Wake-up call sent to your PDI!")
+    message = ping_servicenow()
+    await update.message.reply_text(f"✅ Wake-up call sent to your PDI! Status: {message}")
+
+# Function to send status update via Telegram
+async def send_status(update: Update):
+    message = ping_servicenow()
+    await update.message.reply_text(f"Status Update: {message}")
+
+# Function to ping ServiceNow and send a message to the Telegram bot
+async def ping_and_send_status(application):
+    message = ping_servicenow()
+    chat_id = 5486736990  # Replace with your actual chat ID (as an integer)
+    await application.bot.send_message(chat_id=chat_id, text=f"⏰ Scheduled Status Update: {message}")
+
+# Function to schedule the ping_and_send_status coroutine
+def schedule_ping_and_send_status(application, loop):
+    # Run the coroutine in the event loop using run_coroutine_threadsafe
+    asyncio.run_coroutine_threadsafe(ping_and_send_status(application), loop)
 
 # Set up the Telegram bot (updated for python-telegram-bot v20+)
 async def main():
@@ -39,9 +58,12 @@ async def main():
     # Add the /wake_up command to the bot
     application.add_handler(CommandHandler('wake_up', wake_up))
 
-    # Schedule a background job to ping ServiceNow every 12 hours
+    # Get the current event loop
+    loop = asyncio.get_event_loop()
+
+    # Schedule a background job to ping ServiceNow every 10 minutes and send a status message
     scheduler = BackgroundScheduler()
-    scheduler.add_job(ping_servicenow, 'interval', hours=12)
+    scheduler.add_job(schedule_ping_and_send_status, 'interval', minutes=1, args=[application, loop])
     scheduler.start()
 
     # Start the bot (handles event loop internally)
